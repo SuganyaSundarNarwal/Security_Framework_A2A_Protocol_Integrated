@@ -1,0 +1,98 @@
+policy_version: 1
+collect_all_matches: false        # if true, return all matching rules; else first match wins
+default_rule_priority: 100        # lower priority number = earlier evaluation
+
+thresholds:
+  validity_tp_min: 0.65           # default is 0.65 and auto soc triage is 0.90
+  severity_min: 3                 # default is 3 and auto soc triage is 4
+  exploit_levels_escalate: ["Medium", "Critical"]       # default is ["Medium", "Critical"] and auto soc triage is ["Medium"]
+
+playbook_rules:
+  - id: EDR_LOW_SEV_AUTO_CLOSE_SAFE
+    enabled: true
+    priority: 90
+    description: Auto-close clearly benign low-severity EDR alerts when validity is low and exploitability is not concerning.
+    when:
+      product: CrowdStrike
+      alert_type: EDR
+      severity_max_level: 1
+      validity_tp_max: 0.30
+      exploitability_levels_not_in: ["Medium", "Critical"]
+    do:
+      decision: SOC_TRIAGE
+      auto_action: auto_close
+      phases:
+        identification:
+          - Record auto-dismiss rationale
+          - Attach enrichment summary (internal/external lookups)
+        containment: []
+        recovery: []
+
+  - id: EDR_LOW_SEV_INVESTIGATE_MEDIUM_EXPLOIT
+    enabled: true
+    priority: 95
+    description: For low/medium severity but Medium exploitability, perform light investigation before routing to SOC.
+    when:
+      product: CrowdStrike
+      alert_type: EDR
+      severity_max_level: 2
+      validity_tp_min: 0.60
+      exploitability_levels_in: ["Medium"]
+    do:
+      decision: SOC_TRIAGE
+      auto_action: investigate_then_triage
+      phases:
+        identification:
+          - Fetch host and user profile
+          - Check last 24h similar EDR alerts for this host/user
+          - Reputation check for process/file hash (internal + OSINT)
+        containment:
+          - If similar alerts >= 3 in 1h AND host not critical, quarantine host
+          - If user risk score high, disable credential pending review
+        recovery:
+          - Create case in XSOAR with summarized findings
+
+  - id: AUTH_BRUTEFORCE_LOW_SEV_GUARDED
+    enabled: true
+    priority: 85
+    description: Auth/BruteForce low severity—run guardrails (geo & impossible travel) and enforce MFA/password reset if suspicious.
+    when:
+      alert_type: Auth/BruteForce
+      severity_max_level: 2
+      validity_tp_min: 0.65
+    do:
+      decision: UPLOAD_XSOAR
+      auto_action: guarded_reset_mfa
+      phases:
+        identification:
+          - GeoIP and ASN check
+          - Impossible travel heuristic over last 7 days
+        containment:
+          - Enforce MFA challenge on next sign-in
+          - Force password reset if >10 failures in 30min window
+        recovery:
+          - Notify user and track resolution
+          - Close incident if post-reset activity normal for 24h
+
+  - id: EDR_LOW_SEV_CRITICAL_EXPLOIT_ESCALATE
+    enabled: true
+    priority: 50
+    description: Escalate any EDR alert with Critical exploitability regardless of low severity.
+    when:
+      product: CrowdStrike
+      alert_type: EDR
+      severity_max_level: 2
+      exploitability_levels_in: ["Critical"]
+      validity_tp_min: 0.50
+    do:
+      decision: UPLOAD_XSOAR
+      auto_action: escalate
+      phases:
+        identification:
+          - Pull full host telemetry for last 2h
+          - Collect process lineage and persistence indicators
+        containment:
+          - Immediate host isolation (if not business-critical)
+          - Block IOC in EDR and firewall
+        recovery:
+          - Create incident ticket and notify on-call SOC
