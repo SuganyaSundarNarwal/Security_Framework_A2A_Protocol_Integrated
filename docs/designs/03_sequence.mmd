@@ -1,0 +1,32 @@
+%% 3) Sequence Diagram
+sequenceDiagram
+  autonumber
+  participant U as User / SIEM
+  participant UI as Streamlit UI
+  participant G as Graph (LangGraph)
+  participant A as Agents
+  participant T as Tools/Integrations
+  participant S as SOAR
+  participant C as SOC Channel
+
+  U->>UI: Submit Alert (Form/JSON)
+  UI->>G: build_graph() & run (thread id)
+  G->>T: Enrich indicators (internal/external)
+  T-->>G: Enrichment results
+  G->>A: validity_agent(enrichment)
+  A-->>G: ValidityScore
+  G->>A: severity_agent(enrichment)
+  A-->>G: SeverityScore
+  G->>A: exploitability_agent(enrichment)
+  A-->>G: ExploitabilityScore
+  G->>A: playbook_agent(scores)
+  A-->>G: PlaybookChoice
+  G->>A: decision_agent(scores, policy)
+  A-->>G: Decision(path, rationale)
+  alt Path == UPLOAD_XSOAR
+    G->>S: upload_incident(payload)
+    S-->>G: incident_id / status
+  else Path == SOC_TRIAGE
+    G->>C: notify_soc(summary)
+  end
+  G-->>UI: Stream logs, metrics, final state

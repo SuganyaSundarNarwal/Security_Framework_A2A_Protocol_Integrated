@@ -1,0 +1,30 @@
+flowchart TB
+  subgraph Actors["Actors"]
+    direction LR
+    SA["SOC Analyst"]
+    PA["Platform Admin"]
+    CO["Compliance Officer"]
+  end
+
+  subgraph UseCases["Use Cases"]
+    direction LR
+    UC1(("Submit Alert / Investigate"))
+    UC2(("Configure Policy Thresholds"))
+    UC3(("Monitor Timeline & Metrics"))
+    UC4(("Replay Run via Checkpoints"))
+    UC5(("Integrate SIEM/EDR/OSINT/SOAR"))
+    UC6(("Trigger Automation under Gate"))
+    UC7(("Notify SOC & Route to Triage"))
+    UC8(("Export Audit Log / Evidence"))
+  end
+
+  SA --> UC1
+  SA --> UC3
+  SA --> UC4
+  SA --> UC7
+
+  PA --> UC2
+  PA --> UC5
+  PA --> UC6
+
+  CO --> UC8

@@ -1,0 +1,47 @@
+%% 1) Architectural Diagram
+flowchart LR
+  %% Lanes
+  subgraph Ingestion["Ingestion & External Sources"]
+    SIEM[SIEM/EDR/CMDB]
+    OSINT[OSINT Providers]
+  end
+
+  subgraph Orchestrator["Orchestration & Policy"]
+    LG[LangGraph Orchestrator]
+    CFG[Policy Loader<br/>config.yaml]
+    OBS[Observability<br/>a2a_observability.log]
+    CKPT[Checkpointing<br/>SQLite / Memory]
+  end
+
+  subgraph Agents["LLM Agents"]
+    VAL[Validity Agent]
+    SEV[Severity Agent]
+    EXP[Exploitability Agent]
+    PB[Playbook Agent]
+    DEC[Decision Agent]
+  end
+
+  subgraph Actions["Actions & Destinations"]
+    XSOAR[SOAR / XSOAR Client]
+    TRIAGE[SOC Triage / Notify]
+    UI[Streamlit UI]
+  end
+
+  %% Edges
+  SIEM --> LG
+  OSINT --> LG
+
+  LG --> VAL
+  LG --> SEV
+  LG --> EXP
+  VAL --> PB
+  SEV --> PB
+  EXP --> PB
+  PB --> DEC
+  CFG --> DEC
+  DEC -->|UPLOAD_XSOAR| XSOAR
+  DEC -->|SOC_TRIAGE| TRIAGE
+  LG --> CKPT
+  LG --> OBS
+  LG --> UI
+  UI <---> CKPT

@@ -1,0 +1,45 @@
+%% 4) Interaction Diagram (Component Communication)
+flowchart LR
+  subgraph Clients
+    UI[Streamlit UI]
+  end
+
+  subgraph Core
+    G[LangGraph]
+    CFG[Policy Loader]
+    CKPT[Checkpoint]
+    OBS[Audit Log]
+  end
+
+  subgraph Intelligence
+    VAL[Validity]
+    SEV[Severity]
+    EXP[Exploitability]
+    PB[Playbook]
+    DEC[Decision]
+  end
+
+  subgraph Systems
+    INT[Internal Data Sources]
+    EXT[OSINT APIs]
+    SOAR[SOAR / XSOAR]
+    SOC[SOC Channel]
+  end
+
+  UI --> G
+  G --> INT
+  G --> EXT
+  G --> VAL
+  G --> SEV
+  G --> EXP
+  VAL --> PB
+  SEV --> PB
+  EXP --> PB
+  PB --> DEC
+  CFG --> DEC
+  DEC --> SOAR
+  DEC --> SOC
+  G --> CKPT
+  G --> OBS
+  UI <-. view state .-> CKPT
+  UI <-. view logs .-> OBS

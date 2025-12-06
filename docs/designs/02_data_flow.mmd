@@ -1,0 +1,14 @@
+flowchart LR
+  A["Alert JSON"] --> B["Enrichment Data"]
+  B --> C["Validity Score"]
+  B --> D["Severity Score"]
+  B --> E["Exploitability Score"]
+  C --> F["Playbook Choice"]
+  D --> F
+  E --> F
+  F --> G["Policy Gate &amp; Decision"]
+  G -- "UPLOAD_XSOAR" --> H["SOAR Incident Payload"]
+  G -- "SOC_TRIAGE" --> I["Triage Notification"]
+  H --> J["Status Update"]
+  I --> J
+  J --> K["Audit Log (JSONL)"]

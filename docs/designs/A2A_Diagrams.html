@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>A2A Accelerator — Diagrams (Mermaid 10.9.4)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    h2 { margin-top: 40px; }
+    .mermaid { margin: 16px 0; border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
+  </style>
+</head>
+<body>
+  <h1>A2A Accelerator — Design Diagrams</h1>
+  <p>Architecture -> Data Flow -> Sequence -> Interaction -> Usecase</p>
+
+  <h2>1) Architectural Diagram</h2>
+  <div class="mermaid">%% 1) Architectural Diagram
+flowchart LR
+  %% Lanes
+  subgraph Ingestion["Ingestion & External Sources"]
+    SIEM[SIEM/EDR/CMDB]
+    OSINT[OSINT Providers]
+  end
+
+  subgraph Orchestrator["Orchestration & Policy"]
+    LG[LangGraph Orchestrator]
+    CFG[Policy Loader<br/>config.yaml]
+    OBS[Observability<br/>a2a_observability.log]
+    CKPT[Checkpointing<br/>SQLite / Memory]
+  end
+
+  subgraph Agents["LLM Agents"]
+    VAL[Validity Agent]
+    SEV[Severity Agent]
+    EXP[Exploitability Agent]
+    PB[Playbook Agent]
+    DEC[Decision Agent]
+  end
+
+  subgraph Actions["Actions & Destinations"]
+    XSOAR[SOAR / XSOAR Client]
+    TRIAGE[SOC Triage / Notify]
+    UI[Streamlit UI]
+  end
+
+  %% Edges
+  SIEM --> LG
+  OSINT --> LG
+
+  LG --> VAL
+  LG --> SEV
+  LG --> EXP
+  VAL --> PB
+  SEV --> PB
+  EXP --> PB
+  PB --> DEC
+  CFG --> DEC
+  DEC -->|UPLOAD_XSOAR| XSOAR
+  DEC -->|SOC_TRIAGE| TRIAGE
+  LG --> CKPT
+  LG --> OBS
+  LG --> UI
+  UI <---> CKPT
+</div>
+
+  <h2>2) Data Flow Diagram</h2>
+  <div class="mermaid">flowchart LR
+  A["Alert JSON"] --> B["Enrichment Data"]
+  B --> C["Validity Score"]
+  B --> D["Severity Score"]
+  B --> E["Exploitability Score"]
+  C --> F["Playbook Choice"]
+  D --> F
+  E --> F
+  F --> G["Policy Gate &amp; Decision"]
+  G -- "UPLOAD_XSOAR" --> H["SOAR Incident Payload"]
+  G -- "SOC_TRIAGE" --> I["Triage Notification"]
+  H --> J["Status Update"]
+  I --> J
+  J --> K["Audit Log (JSONL)"]
+</div>
+
+  <h2>3) Sequence Diagram</h2>
+  <div class="mermaid">%% 3) Sequence Diagram
+sequenceDiagram
+  autonumber
+  participant U as User / SIEM
+  participant UI as Streamlit UI
+  participant G as Graph (LangGraph)
+  participant A as Agents
+  participant T as Tools/Integrations
+  participant S as SOAR
+  participant C as SOC Channel
+
+  U->>UI: Submit Alert (Form/JSON)
+  UI->>G: build_graph() & run (thread id)
+  G->>T: Enrich indicators (internal/external)
+  T-->>G: Enrichment results
+  G->>A: validity_agent(enrichment)
+  A-->>G: ValidityScore
+  G->>A: severity_agent(enrichment)
+  A-->>G: SeverityScore
+  G->>A: exploitability_agent(enrichment)
+  A-->>G: ExploitabilityScore
+  G->>A: playbook_agent(scores)
+  A-->>G: PlaybookChoice
+  G->>A: decision_agent(scores, policy)
+  A-->>G: Decision(path, rationale)
+  alt Path == UPLOAD_XSOAR
+    G->>S: upload_incident(payload)
+    S-->>G: incident_id / status
+  else Path == SOC_TRIAGE
+    G->>C: notify_soc(summary)
+  end
+  G-->>UI: Stream logs, metrics, final state
+</div>
+
+  <h2>4) Interaction Diagram</h2>
+  <div class="mermaid">%% 4) Interaction Diagram (Component Communication)
+flowchart LR
+  subgraph Clients
+    UI[Streamlit UI]
+  end
+
+  subgraph Core
+    G[LangGraph]
+    CFG[Policy Loader]
+    CKPT[Checkpoint]
+    OBS[Audit Log]
+  end
+
+  subgraph Intelligence
+    VAL[Validity]
+    SEV[Severity]
+    EXP[Exploitability]
+    PB[Playbook]
+    DEC[Decision]
+  end
+
+  subgraph Systems
+    INT[Internal Data Sources]
+    EXT[OSINT APIs]
+    SOAR[SOAR / XSOAR]
+    SOC[SOC Channel]
+  end
+
+  UI --> G
+  G --> INT
+  G --> EXT
+  G --> VAL
+  G --> SEV
+  G --> EXP
+  VAL --> PB
+  SEV --> PB
+  EXP --> PB
+  PB --> DEC
+  CFG --> DEC
+  DEC --> SOAR
+  DEC --> SOC
+  G --> CKPT
+  G --> OBS
+  UI <-. view state .-> CKPT
+  UI <-. view logs .-> OBS
+</div>
+
+  <h2>5) Use Case Diagram</h2>
+  <div class="mermaid">flowchart TB
+  subgraph Actors["Actors"]
+    direction LR
+    SA["SOC Analyst"]
+    PA["Platform Admin"]
+    CO["Compliance Officer"]
+  end
+
+  subgraph UseCases["Use Cases"]
+    direction LR
+    UC1(("Submit Alert / Investigate"))
+    UC2(("Configure Policy Thresholds"))
+    UC3(("Monitor Timeline & Metrics"))
+    UC4(("Replay Run via Checkpoints"))
+    UC5(("Integrate SIEM/EDR/OSINT/SOAR"))
+    UC6(("Trigger Automation under Gate"))
+    UC7(("Notify SOC & Route to Triage"))
+    UC8(("Export Audit Log / Evidence"))
+  end
+
+  SA --> UC1
+  SA --> UC3
+  SA --> UC4
+  SA --> UC7
+
+  PA --> UC2
+  PA --> UC5
+  PA --> UC6
+
+  CO --> UC8
+</div>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });
+  </script>
+</body>
+</html>
